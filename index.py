@@ -1,3 +1,12 @@
+'''
+imports reading list from mangaupdates.com to mangadex.org
+
+requires:
+beautifulsoup4
+chromedriver-binary (to be installed in python3 directory)
+PyYAML
+selenium
+'''
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -6,18 +15,28 @@ import yaml
 
 
 '''
+./credentials.yaml
+
 mu_username: <account name>
 mu_password: <password>
 md_username:<account name>
 md_password: <password>
 '''
-credentials = {}
-with open('credentials.yaml') as f:
-    credentials = yaml.load(f)
 
+# constants
+# delays
+MANGA_UPDATES_DELAY = 0  # seconds for manga updates to load, usually can be set to 0
+MANGADEX_DELAY = 3  # seconds for mangadex to load
+
+# urls
 mu_url = 'https://www.mangaupdates.com/mylist.html'
 md_login_url = 'https://mangadex.org/login'
 md_search_url = 'https://mangadex.org/quick_search/'
+
+# get credentials
+credentials = {}
+with open('credentials.yaml') as f:
+    credentials = yaml.load(f)
 
 # set driver options
 options = webdriver.chrome.options.Options()
@@ -25,6 +44,7 @@ options.add_argument('--ignore-certificate-errors')
 options.add_argument('--ignore-ssl-errors')
 driver = webdriver.Chrome(options=options)
 driver.get(mu_url)
+time.sleep(MANGA_UPDATES_DELAY)
 
 # authenticate
 username = driver.find_element_by_xpath("//input[@name='username']")
@@ -34,6 +54,7 @@ submit = driver.find_element_by_xpath("//input[@src='images/login.gif']")
 username.send_keys(credentials['mu_username'])
 password.send_keys(credentials['mu_password'])
 submit.click()
+time.sleep(MANGA_UPDATES_DELAY)
 
 # access document
 soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -54,9 +75,10 @@ for i in range(len(title_list)):
     all_titles[href_list[i]] = new_set
 
 
-# scrape each individual page
+# scrape each individual page for alternative titles
 for manga_urls in href_list:
     driver.get(manga_urls)
+    time.sleep(MANGA_UPDATES_DELAY)
 
     # alternate titles are under first sContainer, third sContent
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -68,6 +90,8 @@ for manga_urls in href_list:
 
 # login to mangadex
 driver.get(md_login_url)
+time.sleep(MANGADEX_DELAY)
+
 username = driver.find_element_by_id("login_username")
 password = driver.find_element_by_id("login_password")
 submit = driver.find_element_by_id("login_button")
@@ -77,7 +101,7 @@ password.send_keys(credentials['md_password'])
 submit.click()
 
 # mangadex can be slow sometimes
-time.sleep(2)
+time.sleep(MANGADEX_DELAY)
 
 
 def is_english(s):
@@ -96,21 +120,22 @@ for titles in all_titles.values():
             continue
         query = title_name.replace(" ", "%20")
         driver.get(md_search_url+query)
+        time.sleep(MANGADEX_DELAY)
+
         try:
             manga_entries = driver.find_elements_by_class_name("manga-entry")
             if manga_entries:
                 try:
-                    time.sleep(2)  # wait for jQuery to load
+                    time.sleep(MANGADEX_DELAY)  # wait for jQuery to load
                     follow_btn = manga_entries[0].find_elements_by_xpath(
                         "//button[contains(@class, 'manga_follow_button') and contains(@id, '1')]")
                     follow_btn[0].click()
-                    time.sleep(1)
                 except:
                     print(title_name, "already followed")
                     pass
                 break
         except:
             pass
-        time.sleep(2)
+
 # exit selenium
 driver.quit()
