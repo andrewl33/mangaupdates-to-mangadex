@@ -1,6 +1,6 @@
 # Manga Updates List -> MangaDex List
 
-Imports all currently reading on manga updates to mangadex. Uses python 3.
+Imports all lists on manga updates to mangadex. Uses python 3.
 
 ### Requires python packages
 
@@ -26,4 +26,4 @@ md_password: <mangadex password>
 
 ### Reading Progress
 
-By default, reading progress is not imported. To change this, set `OVERWRITE_PROGRESS` to `True` at the top of the file.
+By default, reading progress is not imported. To change this, set `OVERWRITE_PROGRESS` to `True` at the top of the file. It overwrites all progress saved on MangaDex.
