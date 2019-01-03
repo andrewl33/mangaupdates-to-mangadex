@@ -23,3 +23,7 @@ md_password: <mangadex password>
 ## Usage
 
 `python index.py`
+
+### Reading Progress
+
+By default, reading progress is not imported. To change this, set `OVERWRITE_PROGRESS` to `True` at the top of the file.

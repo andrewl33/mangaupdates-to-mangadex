@@ -25,6 +25,9 @@ import yaml
 # delays
 MANGA_UPDATES_DELAY = 0  # seconds for manga updates to load, usually can be set to 0
 MANGADEX_DELAY = 2  # seconds for mangadex to load (jQuery takes forever)
+# overwrite all progress on mangadex for manga update's progress
+# make sure you really want this changed
+OVERWRITE_PROGRESS = False
 
 # urls
 mu_url = 'https://www.mangaupdates.com/mylist.html'
@@ -32,6 +35,7 @@ mu_url_wish_list = 'https://www.mangaupdates.com/mylist.html?list=wish'
 mu_url_complete_list = 'https://www.mangaupdates.com/mylist.html?list=complete'
 mu_url_unfinished_list = 'https://www.mangaupdates.com/mylist.html?list=unfinished'
 mu_url_on_hold_list = 'https://www.mangaupdates.com/mylist.html?list=hold'
+md_base_url = 'https://mangadex.org'
 md_login_url = 'https://mangadex.org/login'
 md_search_url = 'https://mangadex.org/quick_search/'
 
@@ -52,14 +56,23 @@ def manga_updates_list(driver, url=mu_url):
     return href_list, title_list
 
 
-def manga_updates_reading_progress():
+def manga_updates_reading_progress(driver, reading_list):
     '''
-    TODO: Add chapters and volume
-    td #showList
-    1st child <a>, <u><b>{your volume}
-    2nd child <a><u><b>{your chapter}
+    gets reading list and returns dict of url: (volume number, chapter number)
     '''
-    pass
+
+    reading_progress = dict()
+
+    for url in reading_list.keys():
+        driver.get(url)
+        time.sleep(MANGA_UPDATES_DELAY)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        volume, chapter = soup.find("td", {"id": "showList"}).find_all("b")
+        volume = "".join([x for x in list(list(volume)[0]) if x.isdigit()])
+        chapter = "".join([x for x in list(list(chapter)[0]) if x.isdigit()])
+        reading_progress[url] = (int(volume), int(chapter))
+
+    return reading_progress
 
 
 def manga_updates_all_titles(driver, url=mu_url):
@@ -140,20 +153,10 @@ def mangadex_import(all_titles, driver, type="reading"):
                     "manga-entry")
                 if manga_entries:
                     try:
-                        toggle_btn = manga_entries[0].find_element_by_xpath(
-                            "//button[contains(@class, 'btn-secondary') and contains(@class, 'dropdown-toggle')]")
-                        toggle_btn.click()
-                        follow_btn = manga_entries[0].find_elements_by_xpath(
-                            x_path_string)
-                        follow_btn[0].click()
-
-                        if type == "reading":
-                            # TODO: add chapter follow using button #edit_progress
-                            # #edit_progress_form
-                            # #volume value="<input>" volume values
-                            # #chapter value="<input>" chapter  values
-                            # button type="submit" .btn-success #edit_progress_button for saving
-                            pass
+                        manga_entries[0].find_element_by_xpath(
+                            "//button[contains(@class, 'btn-secondary') and contains(@class, 'dropdown-toggle')]").click()
+                        manga_entries[0].find_elements_by_xpath(x_path_string)[
+                            0].click()
 
                     except:
                         print("already imported:", title_name)
@@ -163,11 +166,52 @@ def mangadex_import(all_titles, driver, type="reading"):
                 pass
 
 
-def mangadex_import_progress():
+def mangadex_import_progress(all_titles, driver, progress):
     '''
     imports chapter and volume information for items in reading list
     '''
-    pass
+    for key, titles in all_titles.items():
+        for title_name in titles:
+            if not is_english(title_name):
+                continue
+            query = title_name.replace(" ", "%20")
+            driver.get(md_search_url+query)
+            time.sleep(MANGADEX_DELAY)  # wait for jQuery to load
+            try:
+                manga_entries = driver.find_elements_by_class_name(
+                    "manga-entry")
+                if manga_entries:
+                    try:
+                        driver.find_elements_by_class_name(
+                            "manga-entry")[0].find_element_by_class_name(
+                            "manga_title").click()
+
+                        time.sleep(MANGADEX_DELAY)
+
+                        # edit menu
+                        volume, chapter = progress[key]
+                        driver.find_element_by_id("edit_progress").click()
+
+                        # find inputs
+                        vol_input = driver.find_element_by_id("volume")
+                        ch_input = driver.find_element_by_id("chapter")
+
+                        # input new value
+                        driver.execute_script(
+                            "arguments[0].setAttribute('value', arguments[1])", vol_input, volume)
+                        driver.execute_script(
+                            "arguments[0].setAttribute('value', arguments[1])", ch_input, chapter)
+
+                        # submit
+                        driver.find_element_by_id(
+                            "edit_progress_button").click()
+
+                    except:
+                        print("overwrite progress import error occurred")
+                        pass
+                    break  # a valid title has been found
+            except:
+                pass
 
 
 def main():
@@ -201,6 +245,9 @@ def main():
     unfinished_list = manga_updates_all_titles(driver, mu_url_unfinished_list)
     on_hold_list = manga_updates_all_titles(driver, mu_url_on_hold_list)
 
+    reading_list_progress = manga_updates_reading_progress(
+        driver, reading_list)
+
     # login to mangadex
     driver.get(md_login_url)
     time.sleep(MANGADEX_DELAY)
@@ -223,7 +270,11 @@ def main():
     mangadex_import(unfinished_list, driver, "dropped")
     mangadex_import(on_hold_list, driver, "on hold")
 
-    # # exit selenium
+    # handle importing of chapters
+    if OVERWRITE_PROGRESS:
+        mangadex_import_progress(reading_list, driver, reading_list_progress)
+
+    # exit selenium
     driver.quit()
 
 
