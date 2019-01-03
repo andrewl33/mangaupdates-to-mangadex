@@ -36,12 +36,12 @@ md_login_url = 'https://mangadex.org/login'
 md_search_url = 'https://mangadex.org/quick_search/'
 
 
-def manga_updates_reading_list(driver):
+def manga_updates_list(driver, url=mu_url):
     '''
-    gets reading list's title name and unique url
+    gets list's unique urls and titles
     '''
-    driver.get(mu_url)
-    # parse urls and titles of reading list
+    driver.get(url)
+    # parse urls and titles of list
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     reading_list = soup.find("table", {"id": "list_table"})
     title_url_list = reading_list.find_all("a", {"title": "Series Info"})
@@ -50,22 +50,6 @@ def manga_updates_reading_list(driver):
     title_list = [u.get_text() for u in title_url_list]
 
     return href_list, title_list
-
-
-def manga_updates_wish_list():
-    pass
-
-
-def manga_updates_complete_list():
-    pass
-
-
-def manga_updates_unfinished_list():
-    pass
-
-
-def manga_updates_on_hold_list():
-    pass
 
 
 def manga_updates_reading_progress():
@@ -78,11 +62,13 @@ def manga_updates_reading_progress():
     pass
 
 
-def manga_updates_all_titles(href_list, title_list, driver):
+def manga_updates_all_titles(driver, url=mu_url):
     '''
     get a list of titles and returns a dict of manga_updates_url: set(all titles)
     '''
     all_titles = {}
+
+    href_list, title_list = manga_updates_list(driver, url)
 
     # initially fill with known values
     for i in range(len(title_list)):
@@ -128,15 +114,15 @@ def mangadex_import(all_titles, driver, type="reading"):
     x_path_string = ""
 
     if type == "reading":
-        x_path_string = "//button[contains(@class, 'manga_follow_button') and contains(@id, '1')]"
+        x_path_string = "//a[contains(@class, 'manga_follow_button') and contains(@id, '1')]"
     elif type == "completed":
-        x_path_string = "//a[contains(@class, 'manga_follow_button') and contains(@id, '2')]"
+        x_path_string = "//a[contains(@class, 'manga_follow_button') and contains(@class, 'dropdown-item') and contains(@id, '2')]"
     elif type == "on hold":
-        x_path_string = "//button[contains(@class, 'manga_follow_button') and contains(@id, '3')]"
+        x_path_string = "//a[contains(@class, 'manga_follow_button') and contains(@class, 'dropdown-item') and contains(@id, '3')]"
     elif type == "plan to read":
-        x_path_string = "//button[contains(@class, 'manga_follow_button') and contains(@id, '4')]"
+        x_path_string = "//a[contains(@class, 'manga_follow_button') and contains(@class, 'dropdown-item') and contains(@id, '4')]"
     elif type == "dropped":
-        x_path_string = "//button[contains(@class, 'manga_follow_button') and contains(@id, '5')]"
+        x_path_string = "//a[contains(@class, 'manga_follow_button') and contains(@class, 'dropdown-item') and contains(@id, '5')]"
     else:
         raise Exception(
             "import type should be: 'reading', 'completed', 'on hold', 'plan to read', 'dropped'")
@@ -148,28 +134,31 @@ def mangadex_import(all_titles, driver, type="reading"):
                 continue
             query = title_name.replace(" ", "%20")
             driver.get(md_search_url+query)
-            time.sleep(MANGADEX_DELAY)
-
+            time.sleep(MANGADEX_DELAY)  # wait for jQuery to load
             try:
                 manga_entries = driver.find_elements_by_class_name(
                     "manga-entry")
                 if manga_entries:
                     try:
-                        time.sleep(MANGADEX_DELAY)  # wait for jQuery to load
+                        toggle_btn = manga_entries[0].find_element_by_xpath(
+                            "//button[contains(@class, 'btn-secondary') and contains(@class, 'dropdown-toggle')]")
+                        toggle_btn.click()
                         follow_btn = manga_entries[0].find_elements_by_xpath(
                             x_path_string)
                         follow_btn[0].click()
 
-                        # TODO: add chapter follow using button #edit_progress
-                        # #edit_progress_form
-                        # #volume value="<input>" volume values
-                        # #chapter value="<input>" chapter  values
-                        # button type="submit" .btn-success #edit_progress_button for saving
+                        if type == "reading":
+                            # TODO: add chapter follow using button #edit_progress
+                            # #edit_progress_form
+                            # #volume value="<input>" volume values
+                            # #chapter value="<input>" chapter  values
+                            # button type="submit" .btn-success #edit_progress_button for saving
+                            pass
 
                     except:
-                        print("already imported: ", title_name)
+                        print("already imported:", title_name)
                         pass
-                    break
+                    break  # a valid title has been found
             except:
                 pass
 
@@ -205,14 +194,12 @@ def main():
     submit.click()
     time.sleep(MANGA_UPDATES_DELAY)
 
-    # get reading list
-    href_list, title_list = manga_updates_reading_list(driver)
-    reading_list = manga_updates_all_titles(href_list, title_list, driver)
-
-    # TODO: get wish list
-    # TODO: get completed list
-    # TODO: get unfinished list
-    # TODO: get on hold list
+    # get lists
+    reading_list = manga_updates_all_titles(driver, mu_url)
+    wish_list = manga_updates_all_titles(driver, mu_url_wish_list)
+    complete_list = manga_updates_all_titles(driver, mu_url_complete_list)
+    unfinished_list = manga_updates_all_titles(driver, mu_url_unfinished_list)
+    on_hold_list = manga_updates_all_titles(driver, mu_url_on_hold_list)
 
     # login to mangadex
     driver.get(md_login_url)
@@ -230,10 +217,13 @@ def main():
     time.sleep(MANGADEX_DELAY)
 
     # import to mangadex
-    # import reading list
     mangadex_import(reading_list, driver)
+    mangadex_import(wish_list, driver, "plan to read")
+    mangadex_import(complete_list, driver, "completed")
+    mangadex_import(unfinished_list, driver, "dropped")
+    mangadex_import(on_hold_list, driver, "on hold")
 
-    # exit selenium
+    # # exit selenium
     driver.quit()
 
 
