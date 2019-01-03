@@ -36,6 +36,48 @@ md_login_url = 'https://mangadex.org/login'
 md_search_url = 'https://mangadex.org/quick_search/'
 
 
+def manga_updates_reading_list(driver):
+    '''
+    gets reading list's title name and unique url
+    '''
+    driver.get(mu_url)
+    # parse urls and titles of reading list
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    reading_list = soup.find("table", {"id": "list_table"})
+    title_url_list = reading_list.find_all("a", {"title": "Series Info"})
+    href_list = [a.get("href") for a in title_url_list]
+    # main title is not featured in associated names
+    title_list = [u.get_text() for u in title_url_list]
+
+    return href_list, title_list
+
+
+def manga_updates_wish_list():
+    pass
+
+
+def manga_updates_complete_list():
+    pass
+
+
+def manga_updates_unfinished_list():
+    pass
+
+
+def manga_updates_on_hold_list():
+    pass
+
+
+def manga_updates_reading_progress():
+    '''
+    TODO: Add chapters and volume
+    td #showList
+    1st child <a>, <u><b>{your volume}
+    2nd child <a><u><b>{your chapter}
+    '''
+    pass
+
+
 def manga_updates_all_titles(href_list, title_list, driver):
     '''
     get a list of titles and returns a dict of manga_updates_url: set(all titles)
@@ -44,9 +86,9 @@ def manga_updates_all_titles(href_list, title_list, driver):
 
     # initially fill with known values
     for i in range(len(title_list)):
-        new_set = set()
-        new_set.add(title_list[i])
-        all_titles[href_list[i]] = new_set
+        new_title_set = set()
+        new_title_set.add(title_list[i])
+        all_titles[href_list[i]] = new_title_set
 
     # scrape each individual page for alternative titles
     for manga_urls in href_list:
@@ -117,12 +159,26 @@ def mangadex_import(all_titles, driver, type="reading"):
                         follow_btn = manga_entries[0].find_elements_by_xpath(
                             x_path_string)
                         follow_btn[0].click()
+
+                        # TODO: add chapter follow using button #edit_progress
+                        # #edit_progress_form
+                        # #volume value="<input>" volume values
+                        # #chapter value="<input>" chapter  values
+                        # button type="submit" .btn-success #edit_progress_button for saving
+
                     except:
-                        print(title_name, "already imported")
+                        print("already imported: ", title_name)
                         pass
                     break
             except:
                 pass
+
+
+def mangadex_import_progress():
+    '''
+    imports chapter and volume information for items in reading list
+    '''
+    pass
 
 
 def main():
@@ -139,7 +195,7 @@ def main():
     driver.get(mu_url)
     time.sleep(MANGA_UPDATES_DELAY)
 
-    # authenticate
+    # manga updates authenticate
     username = driver.find_element_by_xpath("//input[@name='username']")
     password = driver.find_element_by_xpath("//input[@name='password']")
     submit = driver.find_element_by_xpath("//input[@src='images/login.gif']")
@@ -149,16 +205,14 @@ def main():
     submit.click()
     time.sleep(MANGA_UPDATES_DELAY)
 
-    # access document
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    # get reading list
+    href_list, title_list = manga_updates_reading_list(driver)
+    reading_list = manga_updates_all_titles(href_list, title_list, driver)
 
-    # parse urls and titles of reading list
-    reading_list = soup.find("table", {"id": "list_table"})
-    title_url_list = reading_list.find_all("a", {"title": "Series Info"})
-    href_list = [a.get("href") for a in title_url_list]
-    title_list = [u.get_text() for u in title_url_list]
-
-    all_reading_list = manga_updates_all_titles(href_list, title_list, driver)
+    # TODO: get wish list
+    # TODO: get completed list
+    # TODO: get unfinished list
+    # TODO: get on hold list
 
     # login to mangadex
     driver.get(md_login_url)
@@ -175,8 +229,9 @@ def main():
     # mangadex can be slow sometimes
     time.sleep(MANGADEX_DELAY)
 
-    # import by type
-    mangadex_import(all_reading_list, driver)
+    # import to mangadex
+    # import reading list
+    mangadex_import(reading_list, driver)
 
     # exit selenium
     driver.quit()
