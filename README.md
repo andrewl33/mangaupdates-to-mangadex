@@ -1,3 +1,5 @@
+# DOES NOT WORK WITH THE NEW MANGADEX
+
 # Manga Updates List -> MangaDex List
 
 Imports all lists on manga updates to mangadex. Uses python 3.
